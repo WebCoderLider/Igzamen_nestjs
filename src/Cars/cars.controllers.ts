@@ -1,149 +1,103 @@
 import { Controller, Get, Req, Post, Body, Delete, Param, Put, UseInterceptors, UploadedFile, Res, HttpStatus, InternalServerErrorException } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { Pool } from 'pg';
+import { knex } from 'knex';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as imgfs from 'fs';
 import * as uuid from 'uuid';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import { Car } from './car'; // Import the Car class from the car.ts file
 
-interface Car {
-  cars_marka: string;
-  cars_tanirovka: string;
-  cars_motor: string;
-  cars_year: number;
-  cars_color: string;
-  cars_distance: string;
-  cars_gearbook: string;
-  cars_description: string;
-  cars_img: File;
-  category_id: string;
-  car_price: number; // Add car_price field
-}
+const knexInstance = knex({
+  client: 'pg',
+  connection: {
+    user: 'postgres',
+    host: 'localhost',
+    database: 'webcoderlider',
+    password: 'admin',
+    port: 5432,
+  },
+});
 
-
-
+@ApiTags('cars')
 @Controller('cars')
 export class CarsController {
-  private pool: Pool;
 
-  constructor() {
-    this.pool = new Pool({
-      user: 'postgres',
-      host: 'localhost',
-      database: 'webcoderlider',
-      password: 'admin',
-      port: 5432,
-    });
-  }
-
-
-  @Get('/:car_id') // "car" so'zini qo'shing
+  @ApiOperation({ summary: 'Get a car by ID' })
+  @ApiParam({ name: 'car_id', description: 'Car ID' })
+  @ApiResponse({ status: 200, description: 'Success', type: Car })
+  @Get('/:car_id')
   async getCar(@Param('car_id') car_id: string): Promise<Car> {
-    const client = await this.pool.connect();
     try {
-      const result = await client.query(
-        `
-        SELECT *
-        FROM cars
-        WHERE car_id = $1
-        `,
-        [car_id],
-      );
-      return result.rows[0]; // Ma'lumotlarni qaytarish
+      const result = await knexInstance<Car>('cars').where('car_id', car_id).first();
+      return result; // Return the data
     } catch (error) {
       console.error('Error executing query', error);
       throw new InternalServerErrorException('An error occurred');
-    } finally {
-      client.release();
     }
   }
 
-
-
+  @ApiOperation({ summary: 'Get all cars' })
+  @ApiResponse({ status: 200, description: 'Success', type: [Car] })
   @Get()
-  async findAll(@Req() request: Request): Promise<string> {
-    const client = await this.pool.connect();
+  async findAll(@Req() request: Request): Promise<Car[]> {
     try {
-      const result = await client.query('SELECT * FROM cars');
-      return JSON.stringify(result.rows);
+      const result: Car[] = await knexInstance('cars').select('*');
+      return result; // Return the data
     } catch (error) {
       console.error('Error executing query', error);
-      return 'An error occurred';
-    } finally {
-      client.release();
+      throw new InternalServerErrorException('An error occurred');
     }
   }
 
+  @ApiOperation({ summary: 'Delete a car by ID' })
+  @ApiParam({ name: 'id', description: 'Car ID' })
+  @ApiResponse({ status: 200, description: 'Success' })
+  @ApiResponse({ status: 500, description: 'An error occurred' })
   @Delete(':id')
   async delete(@Param('id') id: string): Promise<string> {
-    const client = await this.pool.connect();
     try {
-      await client.query('DELETE FROM cars WHERE car_id = $1', [id]);
+      await knexInstance('cars').where('car_id', id).del();
       return 'Car deleted successfully';
     } catch (error) {
       console.error('Error executing query', error);
-      return 'An error occurred';
-    } finally {
-      client.release();
+      throw new InternalServerErrorException('An error occurred');
     }
   }
 
+  @ApiOperation({ summary: 'Update a car' })
+  @ApiParam({ name: 'id', description: 'Car ID' })
+  @ApiBody({ type: Car })
+  @ApiResponse({ status: 200, description: 'Success' })
+  @ApiResponse({ status: 500, description: 'An error occurred' })
   @Put(':id')
   async update(
     @Param('id') id: string,
-    @Body() body: {
-      cars_marka?: string;
-      cars_tanirovka?: string;
-      cars_motor?: string;
-      cars_year?: string;
-      cars_color?: string;
-      cars_distance?: string;
-      cars_gearbook?: string;
-      cars_description?: string;
-      cars_img?: string;
-    }
+    @Body() body: Partial<Car> // Use Partial type to allow partial updates
   ): Promise<string> {
-    const client = await this.pool.connect();
     try {
-      let updateQuery = 'UPDATE cars SET';
-      const values: any[] = [];
-      const keys = Object.keys(body);
-      keys.forEach((key, index) => {
-        if (body[key]) {
-          updateQuery += ` ${key} = $${index + 1},`;
-          values.push(body[key]);
-        }
-      });
-      updateQuery = updateQuery.slice(0, -1); // Remove the last comma
-      values.push(id);
-      await client.query(updateQuery + ' WHERE car_id = $' + values.length, values);
+      await knexInstance('cars').where('car_id', id).update(body);
       return 'Car updated successfully';
     } catch (error) {
       console.error('Error executing query', error);
-      return 'An error occurred';
-    } finally {
-      client.release();
+      throw new InternalServerErrorException('An error occurred');
     }
   }
 
-
-
+  @ApiOperation({ summary: 'Get a car image by filename' })
+  @ApiParam({ name: 'cars_img', description: 'Car image filename' })
+  @ApiResponse({ status: 200, description: 'Success', content: { 'image/*': {} } })
+  @ApiResponse({ status: 404, description: 'Car image not found' })
   @Get('img/:cars_img')
   async getCarsImage(@Param('cars_img') carsImg: string, @Res() res: Response): Promise<void> {
-    const client = await this.pool.connect();
     try {
-      const result = await client.query(
-        `
-        SELECT cars_img
-        FROM cars
-        WHERE cars_img LIKE $1
-      `,
-        [`%${carsImg}%`],
-      );
+      const result = await knexInstance<Car[]>('cars')
+        .select('cars_img')
+        .where('cars_img', 'LIKE', `%${carsImg}%`);
 
-      if (result.rows.length > 0) {
-        const imagePath = path.join(__dirname, '..', '..', 'uploads', result.rows[0].cars_img);
+      if (result.length > 0) {
+        const imagePath = path.join(__dirname, '..', '..', 'uploads', result[0].cars_img);
 
         const fileStream = imgfs.createReadStream(imagePath);
         fileStream.on('open', () => {
@@ -160,33 +114,19 @@ export class CarsController {
     } catch (error) {
       console.error('Error executing query', error);
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).send('An error occurred');
-    } finally {
-      client.release();
     }
   }
 
-
-
-
+  @ApiOperation({ summary: 'Create a new car' })
+  @ApiBody({ type: Car })
+  @ApiResponse({ status: 201, description: 'Car created successfully' })
+  @ApiResponse({ status: 500, description: 'An error occurred' })
   @Post()
   @UseInterceptors(FileInterceptor('cars_img'))
   async create(
-    @Body() body: {
-      cars_marka: string;
-      cars_tanirovka: string;
-      cars_motor: string;
-      cars_year: number; // Updated field type to number
-      cars_color: string;
-      cars_distance: string;
-      cars_gearbook: string;
-      cars_description: string;
-      cars_img: string; // Updated field type to string
-      category_id: string;
-      car_price: number; // Add car_price field
-    },
+    @Body() body: Omit<Car, 'cars_img'>,
     @UploadedFile() file: Express.Multer.File
   ): Promise<string> {
-    const client = await this.pool.connect();
     try {
       const {
         cars_marka,
@@ -201,26 +141,32 @@ export class CarsController {
         car_price
       } = body;
 
-      const car_id = uuid.v4(); // Generate a UUID for car_id field
+      const car_id = uuid.v4();
 
-      // Handle file upload using Multer
       const fileName = car_id + path.extname(file.originalname);
       const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
       await fs.writeFile(filePath, file.buffer);
 
-      const result = await client.query(
-        'INSERT INTO cars (car_id, cars_marka, cars_tanirovka, cars_motor, cars_year, cars_color, cars_distance, cars_gearbook, cars_description, cars_img, car_price, category_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *',
-        [car_id, cars_marka, cars_tanirovka, cars_motor, cars_year, cars_color, cars_distance, cars_gearbook, cars_description, fileName, car_price, category_id]
-      )
+      await knexInstance<Car>('cars').insert({
+        car_id,
+        cars_marka,
+        cars_tanirovka,
+        cars_motor,
+        cars_year,
+        cars_color,
+        cars_distance,
+        cars_gearbook,
+        cars_description,
+        cars_img: fileName,
+        category_id,
+        car_price
+      });
 
       return 'Car created successfully';
     } catch (error) {
       console.error('Error executing query', error);
-      return 'An error occurred';
-    } finally {
-      client.release();
+      throw new InternalServerErrorException('An error occurred');
     }
-
-
   }
+
 }
