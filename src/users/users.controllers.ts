@@ -203,29 +203,32 @@ export class UsersController {
     }
   }
 
-  @Put(':id')
-  @ApiParam({ name: 'id', type: 'string', description: 'User ID' })
+  @Put(':user_id')
+  @ApiParam({ name: 'user_id', type: 'string', description: 'User ID' })
   @ApiBody({ type: UpdateUserDto })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async update(@Param('id') id: string, @Body() body: { username: string; user_email: string; user_img?: string }): Promise<string> {
-    const { username, user_email, user_img } = body;
+  async update(
+    @Param('user_id') id: string,
+    @Body() body: { username: string; user_email: string; user_img?: string }
+  ): Promise<string> {
+    const { username, user_email } = body;
+    console.log('Received body:', body); // Log the received body to check the values
+
     try {
-      if (user_img) {
-        const fileExtension = user_img.split('.').pop();
-        const newUserImg = `${uuid.v4()}.${fileExtension}`;
-        await knexInstance('users').where('user_id', id).update({
-          username,
-          user_email,
-          user_img: newUserImg,
-        });
-      } else {
-        await knexInstance('users').where('user_id', id).update({ username, user_email });
-      }
+        await knexInstance('users')
+          .where('user_id', id)
+          .update({
+            username,
+            user_email
+          });
       return 'User updated successfully';
     } catch (error) {
       console.error('Error executing query', error);
       return 'An error occurred';
     }
   }
+
+
+
 }
