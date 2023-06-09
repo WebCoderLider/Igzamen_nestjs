@@ -1,5 +1,3 @@
-// users.dto.ts
-
 import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 export class likedDto {
@@ -12,5 +10,5 @@ export class likedDto {
 
   @IsString()
   @IsNotEmpty()
-  liked_id: string;
+  car_id: string;
 }

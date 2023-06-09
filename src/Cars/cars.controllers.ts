@@ -7,7 +7,7 @@ import * as fs from 'fs/promises';
 import * as imgfs from 'fs';
 import * as uuid from 'uuid';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
-import { Car } from './car'; // Import the Car class from the car.ts file
+import { Car as CarEntity } from './car'; // Rename the imported Car class to CarEntity
 
 const knexInstance = knex({
   client: 'pg',
@@ -20,17 +20,32 @@ const knexInstance = knex({
   },
 });
 
+interface Car {
+  car_id: string;
+  car_price: number;
+  cars_color: string;
+  cars_description: string;
+  cars_distance: number;
+  cars_gearbook: string;
+  cars_img: string;
+  cars_marka: string;
+  cars_motor: string;
+  cars_tanirovka: string;
+  cars_year: number;
+  category_id: number;
+}
+
 @ApiTags('cars')
 @Controller('cars')
 export class CarsController {
 
   @ApiOperation({ summary: 'Get a car by ID' })
   @ApiParam({ name: 'car_id', description: 'Car ID' })
-  @ApiResponse({ status: 200, description: 'Success', type: Car })
+  @ApiResponse({ status: 200, description: 'Success', type: CarEntity })
   @Get('/:car_id')
-  async getCar(@Param('car_id') car_id: string): Promise<Car> {
+  async getCar(@Param('car_id') car_id: string): Promise<CarEntity> {
     try {
-      const result = await knexInstance<Car>('cars').where('car_id', car_id).first();
+      const result = await knexInstance<CarEntity>('cars').where('car_id', car_id).first();
       return result; // Return the data
     } catch (error) {
       console.error('Error executing query', error);
@@ -38,12 +53,13 @@ export class CarsController {
     }
   }
 
+
   @ApiOperation({ summary: 'Get all cars' })
-  @ApiResponse({ status: 200, description: 'Success', type: [Car] })
+  @ApiResponse({ status: 200, description: 'Success', type: [CarEntity] })
   @Get()
   async findAll(@Req() request: Request): Promise<Car[]> {
     try {
-      const result: Car[] = await knexInstance('cars').select('*');
+      const result: Car[] = await knexInstance<Car>('cars').select('*');
       return result; // Return the data
     } catch (error) {
       console.error('Error executing query', error);
@@ -58,7 +74,7 @@ export class CarsController {
   @Delete(':id')
   async delete(@Param('id') id: string): Promise<string> {
     try {
-      await knexInstance('cars').where('car_id', id).del();
+      await knexInstance<Car>('cars').where('car_id', id).del();
       return 'Car deleted successfully';
     } catch (error) {
       console.error('Error executing query', error);
@@ -68,7 +84,7 @@ export class CarsController {
 
   @ApiOperation({ summary: 'Update a car' })
   @ApiParam({ name: 'id', description: 'Car ID' })
-  @ApiBody({ type: Car })
+  @ApiBody({ type: CarEntity })
   @ApiResponse({ status: 200, description: 'Success' })
   @ApiResponse({ status: 500, description: 'An error occurred' })
   @Put(':id')
@@ -77,7 +93,7 @@ export class CarsController {
     @Body() body: Partial<Car> // Use Partial type to allow partial updates
   ): Promise<string> {
     try {
-      await knexInstance('cars').where('car_id', id).update(body);
+      await knexInstance<Car>('cars').where('car_id', id).update(body);
       return 'Car updated successfully';
     } catch (error) {
       console.error('Error executing query', error);
@@ -118,7 +134,7 @@ export class CarsController {
   }
 
   @ApiOperation({ summary: 'Create a new car' })
-  @ApiBody({ type: Car })
+  @ApiBody({ type: CarEntity })
   @ApiResponse({ status: 201, description: 'Car created successfully' })
   @ApiResponse({ status: 500, description: 'An error occurred' })
   @Post()
@@ -168,5 +184,4 @@ export class CarsController {
       throw new InternalServerErrorException('An error occurred');
     }
   }
-
 }

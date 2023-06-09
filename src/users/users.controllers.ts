@@ -115,46 +115,57 @@ export class UsersController {
   }
 
   @Post()
-  @ApiBody({ type: CreateUserDto })
-  @ApiResponse({ status: 201, description: 'User created successfully' })
-  @ApiResponse({ status: 500, description: 'An error occurred' })
-  @UseInterceptors(FileInterceptor('user_img'))
-  async create(
-    @Body() body: { username: string; user_email: string; user_password: string },
-    @UploadedFile() userImg: Express.Multer.File,
-  ): Promise<{ message: string; token: string }> {
-    const { username, user_email, user_password } = body;
-    const id = uuid.v4();
-    try {
-      // Hash the user password
-      const hashedPassword = await hash(user_password, 10);
+@ApiBody({ type: CreateUserDto })
+@ApiResponse({ status: 201, description: 'User created successfully' })
+@ApiResponse({ status: 400, description: 'User with the provided email already exists' })
+@ApiResponse({ status: 500, description: 'An error occurred' })
+@UseInterceptors(FileInterceptor('user_img'))
+async create(
+  @Body() body: { username: string; user_email: string; user_password: string },
+  @UploadedFile() userImg: Express.Multer.File,
+): Promise<{ message: string; token: string }> {
+  const { username, user_email, user_password } = body;
+  const id = uuid.v4();
+  try {
+    const existingUser = await knexInstance('users').where('user_email', user_email).first();
+    if (existingUser) {
+      throw new Error('User with the provided email already exists');
+    }
 
-      let userImgPath: string = null;
+    // Hash the user password
+    const hashedPassword = await hash(user_password, 10);
 
-      if (userImg) {
-        const fileExtension = userImg.originalname.split('.').pop();
-        const uploadPath = `uploads/${id}.${fileExtension}`;
-        fs.writeFileSync(uploadPath, userImg.buffer);
-        userImgPath = uploadPath;
-      }
+    let userImgPath: string = null;
 
-      await knexInstance('users').insert({
-        user_id: id,
-        username,
-        user_email,
-        user_password: hashedPassword,
-        user_img: userImgPath,
-      });
+    if (userImg) {
+      const fileExtension = userImg.originalname.split('.').pop();
+      const uploadPath = `uploads/${id}.${fileExtension}`;
+      fs.writeFileSync(uploadPath, userImg.buffer);
+      userImgPath = uploadPath;
+    }
 
-      // Generate a JWT token
-      const token = sign({ user_id: id }, 'your_secret_key', { expiresIn: '2h' });
+    await knexInstance('users').insert({
+      user_id: id,
+      username,
+      user_email,
+      user_password: hashedPassword,
+      user_img: userImgPath,
+    });
 
-      return { message: 'User created successfully', token };
-    } catch (error) {
-      console.error('Error executing query', error);
+    // Generate a JWT token
+    const token = sign({ user_id: id }, 'your_secret_key', { expiresIn: '2h' });
+
+    return { message: 'User created successfully', token };
+  } catch (error) {
+    console.error('Error executing query', error);
+    if (error.message === 'User with the provided email already exists') {
+      return { message: error.message, token: null };
+    } else {
       return { message: 'An error occurred', token: null };
     }
   }
+}
+
 
   @Post('login')
   @ApiBody({ type: CreateUserDto })
