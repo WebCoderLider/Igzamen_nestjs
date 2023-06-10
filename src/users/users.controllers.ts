@@ -115,56 +115,56 @@ export class UsersController {
   }
 
   @Post()
-@ApiBody({ type: CreateUserDto })
-@ApiResponse({ status: 201, description: 'User created successfully' })
-@ApiResponse({ status: 400, description: 'User with the provided email already exists' })
-@ApiResponse({ status: 500, description: 'An error occurred' })
-@UseInterceptors(FileInterceptor('user_img'))
-async create(
-  @Body() body: { username: string; user_email: string; user_password: string },
-  @UploadedFile() userImg: Express.Multer.File,
-): Promise<{ message: string; token: string }> {
-  const { username, user_email, user_password } = body;
-  const id = uuid.v4();
-  try {
-    const existingUser = await knexInstance('users').where('user_email', user_email).first();
-    if (existingUser) {
-      throw new Error('User with the provided email already exists');
-    }
+  @ApiBody({ type: CreateUserDto })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  @ApiResponse({ status: 400, description: 'User with the provided email already exists' })
+  @ApiResponse({ status: 500, description: 'An error occurred' })
+  @UseInterceptors(FileInterceptor('user_img'))
+  async create(
+    @Body() body: { username: string; user_email: string; user_password: string },
+    @UploadedFile() userImg: Express.Multer.File,
+  ): Promise<{ message: string; token: string }> {
+    const { username, user_email, user_password } = body;
+    const id = uuid.v4();
+    try {
+      const existingUser = await knexInstance('users').where('user_email', user_email).first();
+      if (existingUser) {
+        throw new Error('User with the provided email already exists');
+      }
 
-    // Hash the user password
-    const hashedPassword = await hash(user_password, 10);
+      // Hash the user password
+      const hashedPassword = await hash(user_password, 10);
 
-    let userImgPath: string = null;
+      let userImgPath: string = null;
 
-    if (userImg) {
-      const fileExtension = userImg.originalname.split('.').pop();
-      const uploadPath = `uploads/${id}.${fileExtension}`;
-      fs.writeFileSync(uploadPath, userImg.buffer);
-      userImgPath = uploadPath;
-    }
+      if (userImg) {
+        const fileExtension = userImg.originalname.split('.').pop();
+        const uploadPath = `uploads/${id}.${fileExtension}`;
+        fs.writeFileSync(uploadPath, userImg.buffer);
+        userImgPath = uploadPath;
+      }
 
-    await knexInstance('users').insert({
-      user_id: id,
-      username,
-      user_email,
-      user_password: hashedPassword,
-      user_img: userImgPath,
-    });
+      await knexInstance('users').insert({
+        user_id: id,
+        username,
+        user_email,
+        user_password: hashedPassword,
+        user_img: userImgPath,
+      });
 
-    // Generate a JWT token
-    const token = sign({ user_id: id }, 'your_secret_key', { expiresIn: '2h' });
+      // Generate a JWT token
+      const token = sign({ user_id: id }, 'your_secret_key', { expiresIn: '2h' });
 
-    return { message: 'User created successfully', token };
-  } catch (error) {
-    console.error('Error executing query', error);
-    if (error.message === 'User with the provided email already exists') {
-      return { message: error.message, token: null };
-    } else {
-      return { message: 'An error occurred', token: null };
+      return { message: 'User created successfully', token };
+    } catch (error) {
+      console.error('Error executing query', error);
+      if (error.message === 'User with the provided email already exists') {
+        return { message: error.message, token: null };
+      } else {
+        return { message: 'An error occurred', token: null };
+      }
     }
   }
-}
 
 
   @Post('login')
@@ -221,18 +221,19 @@ async create(
   @ApiResponse({ status: 404, description: 'User not found' })
   async update(
     @Param('user_id') id: string,
-    @Body() body: { username: string; user_email: string; user_img?: string }
+    @Body() body: { username?: string; user_email?: string; password?: string }
   ): Promise<string> {
-    const { username, user_email } = body;
+    const { username, user_email, password } = body;
     console.log('Received body:', body); // Log the received body to check the values
 
     try {
-        await knexInstance('users')
-          .where('user_id', id)
-          .update({
-            username,
-            user_email
-          });
+      await knexInstance('users')
+        .where('user_id', id)
+        .update({
+          username,
+          user_email,
+          password
+        });
       return 'User updated successfully';
     } catch (error) {
       console.error('Error executing query', error);

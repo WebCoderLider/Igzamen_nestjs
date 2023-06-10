@@ -5,14 +5,16 @@ import { CategorysModule } from './Categoriya/categorys.repo';
 import { CarsModule } from './Cars/cars.repo';
 import { UsersModule } from './users/users.repo';
 import cors from 'cors';
-import { LikedModule } from './liked/liked.repo';
+import {  LikedModule } from './liked/liked.repo';
+import { AdminModule } from './admin/admin.repo';
 
 @Module({
   imports: [
     CategorysModule,
     CarsModule,
     UsersModule,
-    LikedModule
+    LikedModule,
+    AdminModule
   ],
   controllers: [AppController],
   providers: [AppService],
